@@ -207,7 +207,7 @@
       const check = document.createElement('input');
       check.type='checkbox'; check.checked=true;
       summary.appendChild(check);
-      summary.appendChild(document.createTextNode(region));
+      summary.appendChild(document.createTextNode(region + " (" + places.length + ")"));
       details.appendChild(summary);
 
       places.forEach(p=>{
