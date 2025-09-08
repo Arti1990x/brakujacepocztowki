@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mapa pocztówek</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Marker Cluster -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background: #f2f4f7;
+    }
+
+    #map {
+      width: 100%;
+      height: 70vh;
+      position: relative;
+    }
+
+    .panel {
+      position: absolute;
+      z-index: 1000;
+      top: 10px;
+      left: 10px;
+      width: min(92vw, 320px);
+      background: white;
+      padding: 12px;
+      border-radius: 10px;
+      box-shadow: 0 4px 15px rgba(0,0,0,.2);
+      font-size: 14px;
+    }
+
+    .row { margin-top: 6px; display: flex; flex-direction: column; gap: 4px; }
+    input, select, button {
+      padding: 6px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+    button { cursor: pointer; font-weight: 600; }
+
+    /* Dopasowujemy szerokość inputów i buttonów */
+    .panel input, .panel select, .panel button {
+      width: 100%;
+    }
+
+    h2 {
+      text-align: center;
+      margin: 20px 0 10px;
+      font-size: 20px;
+    }
+
+    #regions {
+      padding: 20px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 12px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .region-card {
+      background: white;
+      border-radius: 10px;
+      padding: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,.1);
+    }
+
+    .region-card summary {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      padding: 6px 0;
+    }
+
+    .region-card summary input[type=checkbox] {
+      width: 16px;
+      height: 16px;
+      margin: 0;
+    }
+
+    .region-card div {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 0 4px 22px;
+    }
+
+    .region-card div input[type=checkbox] {
+      width: 16px;
+      height: 16px;
+      margin: 0;
+    }
+
+    #globalToggle {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 6px;
+      margin: 10px 0;
+      font-weight: bold;
+    }
+
+    /* Przyciski zoom na dole mapy */
+    .leaflet-control-zoom {
+      bottom: 10px !important;
+      top: 110px  !important;
+      left: 10px !important;
+	  position: bottomleft;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div class="panel">
+    <div><b>Mapa miejscowości</b></div>
+    <div class="row">
+      <label>Wyszukaj miejscowość:</label>
+      <input id="search" placeholder="np. Łódź" />
+    </div>
+    <!--div class="row">
+      <select id="mode">
+        <option value="driving-car">Samochód</option>
+        <option value="foot-walking">Pieszo</option>
+        <option value="cycling-regular">Rower</option>
+      </select>
+    </div>
+    <div class="row">
+      <input id="start" placeholder="Start (miasto lub lat, lon)" />
+      <input id="end" placeholder="Meta (miasto lub lat, lon)" />
+    </div>
+    <div class="row">
+      <button id="routeBtn">Wyznacz trasę</button>
+      <button id="clearBtn">Wyczyść</button>
+    </div>
+    <small>Routing: OpenRouteService (wymaga darmowego API Key).</small-->
+  </div>
+
+  <h2>Brakujące pocztówki</h2>
+  <div id="globalToggle">
+    <input type="checkbox" id="toggleAll" checked />
+    <label for="toggleAll">Zaznacz/Odznacz wszystkie województwa</label>
+  </div>
+  <div id="regions"></div>
+
+  <script type="text/javascript" src="polish_cities_coords.js"></script>
+  <script>
+    const REGIONS_OLD = {
+      "Mazowieckie": [{name:"Warszawa",lat:52.2297,lon:21.0122},{name:"Radom",lat:51.4027,lon:21.1471}],
+      "Małopolskie": [{name:"Kraków",lat:50.0614,lon:19.9383},{name:"Tarnów",lat:50.0138,lon:20.9869}],
+      "Śląskie": [{name:"Katowice",lat:50.2649,lon:19.0238},{name:"Częstochowa",lat:50.8118,lon:19.1203}],
+      "Wielkopolskie": [{name:"Poznań",lat:52.4064,lon:16.9252},{name:"Kalisz",lat:51.7611,lon:18.0910}],
+      "Dolnośląskie": [{name:"Wrocław",lat:51.1079,lon:17.0385},{name:"Legnica",lat:51.2070,lon:16.1550}],
+      "Pomorskie": [{name:"Gdańsk",lat:54.3520,lon:18.6466},{name:"Słupsk",lat:54.4641,lon:17.0287}],
+      "Lubelskie": [{name:"Lublin",lat:51.2465,lon:22.5684},{name:"Zamość",lat:50.7239,lon:23.2516}],
+      "Podkarpackie": [{name:"Rzeszów",lat:50.0413,lon:21.9990},{name:"Przemyśl",lat:49.7841,lon:22.7675}],
+      "Kujawsko-Pomorskie": [{name:"Bydgoszcz",lat:53.1235,lon:18.0084},{name:"Toruń",lat:53.0138,lon:18.5984}],
+      "Warmińsko-Mazurskie": [{name:"Olsztyn",lat:53.7784,lon:20.4801},{name:"Elbląg",lat:54.1522,lon:19.4088}],
+      "Lubuskie": [{name:"Gorzów Wlkp.",lat:52.7368,lon:15.2288},{name:"Zielona Góra",lat:51.9355,lon:15.5064}],
+      "Opolskie": [{name:"Opole",lat:50.6751,lon:17.9213},{name:"Kędzierzyn-Koźle",lat:50.3498,lon:18.2212}],
+      "Podlaskie": [{name:"Białystok",lat:53.1325,lon:23.1688},{name:"Łomża",lat:53.1781,lon:22.0593}],
+      "Świętokrzyskie": [{name:"Kielce",lat:50.8661,lon:20.6286},{name:"Sandomierz",lat:50.6823,lon:21.7487}],
+      "Zachodniopomorskie": [{name:"Szczecin",lat:53.4285,lon:14.5528},{name:"Koszalin",lat:54.1944,lon:16.1722}]
+    };
+
+    const map = L.map('map').setView([52, 19], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, attribution:'&copy; OpenStreetMap'}).addTo(map);
+
+    const cluster = L.markerClusterGroup();
+    map.addLayer(cluster);
+
+    const markersByRegion = {};
+    const markersByName = new Map();
+
+    for (const [region, places] of Object.entries(REGIONS)) {
+      markersByRegion[region] = [];
+      places.forEach(p => {
+        const m = L.marker([p.lat,p.lon]).bindPopup(`<b>${p.name}</b>`);
+        cluster.addLayer(m);
+        markersByRegion[region].push(m);
+        markersByName.set(p.name.toLowerCase(), m);
+      });
+    }
+
+    const regionsDiv = document.getElementById('regions');
+    for (const [region, places] of Object.entries(REGIONS)) {
+      const card = document.createElement('div');
+      card.className = 'region-card';
+
+      const details = document.createElement('details');
+      details.open = false;
+
+      const summary = document.createElement('summary');
+      const check = document.createElement('input');
+      check.type='checkbox'; check.checked=true;
+      summary.appendChild(check);
+      summary.appendChild(document.createTextNode(region));
+      details.appendChild(summary);
+
+      places.forEach(p=>{
+        const div=document.createElement('div');
+        const c=document.createElement('input');
+        c.type='checkbox'; c.dataset.city=p.name.toLowerCase(); c.checked=true;
+        div.appendChild(c);
+        div.appendChild(document.createTextNode(p.name));
+        details.appendChild(div);
+
+        c.addEventListener('change', ()=>{
+          const m=markersByName.get(p.name.toLowerCase());
+          if(c.checked) cluster.addLayer(m); else cluster.removeLayer(m);
+        });
+      });
+
+      check.addEventListener('change', ()=>{
+        const checked = check.checked;
+        details.querySelectorAll('input[type=checkbox][data-city]').forEach(c=>{
+          c.checked = checked;
+          const m = markersByName.get(c.dataset.city);
+          if(checked) cluster.addLayer(m); else cluster.removeLayer(m);
+        });
+      });
+
+      card.appendChild(details);
+      regionsDiv.appendChild(card);
+    }
+
+    document.getElementById('toggleAll').addEventListener('change', e=>{
+      const checked = e.target.checked;
+      document.querySelectorAll('#regions input[type=checkbox]').forEach(cb=>{
+        cb.checked = checked;
+        if(cb.dataset.city){
+          const m = markersByName.get(cb.dataset.city);
+          if(checked) cluster.addLayer(m); else cluster.removeLayer(m);
+        }
+      });
+    });
+	
+	
+	
+	// Arti dodaje
+    // === 4) Routing przez ORS ===
+	/*
+    let routingLayer = null;
+    const ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjlmZGVlNjA1MmZkYzQ4MmU4OWVjNmQ2NDU3MjI4MmIyIiwiaCI6Im11cm11cjY0In0="; // załóż darmowe konto na https://openrouteservice.org/
+
+    async function setRoute(start, end, mode) {
+      if (routingLayer) { map.removeLayer(routingLayer); routingLayer = null; }
+
+      const url = `https://api.openrouteservice.org/v2/directions/${mode}?api_key=${ORS_API_KEY}&start=${start.lng},${start.lat}&end=${end.lng},${end.lat}`;
+      const res = await fetch(url);
+      if (!res.ok) { alert("Błąd routingu"); return; }
+      const data = await res.json();
+
+      const coords = data.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
+      routingLayer = L.polyline(coords, {color: 'blue'}).addTo(map);
+      map.fitBounds(routingLayer.getBounds());
+    }
+
+    function parsePoint(text) {
+      const s = text.trim();
+      const m = markersByName.get(s.toLowerCase());
+      if (m) return m.getLatLng();
+      const parts = s.split(',').map(x => x.trim());
+      if (parts.length === 2) {
+        const lat = parseFloat(parts[0]), lon = parseFloat(parts[1]);
+        if (!isNaN(lat) && !isNaN(lon)) return L.latLng(lat, lon);
+      }
+      return null;
+    }
+
+    function parsePointArti(text) {
+      const s = text.trim();
+      const m = markersByName.get(s.toLowerCase());
+      if (m) return m.getLatLng();
+      //const parts = s.split(',').map(x => x.trim());
+      //if (parts.length === 2) {
+      //  const lat = parseFloat(parts[0]), lon = parseFloat(parts[1]);
+      //  if (!isNaN(lat) && !isNaN(lon)) return L.latLng(lat, lon);
+      //}
+	  
+	  query = s.toLowerCase();
+	  if (!query) return;
+      fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`)
+        .then(r => r.json())
+        .then(results => {
+          if (results && results.length > 0) {
+            const { lat, lon, display_name } = results[0];
+            const latLng = [parseFloat(lat), parseFloat(lon)];
+			alert(latLng);
+			return L.latLng(parseFloat(lat), parseFloat(lon));
+          } else {
+            alert("Nie znaleziono miejscowości");
+          }
+        });
+	  
+	  
+      return null;
+    }
+	
+    document.getElementById('routeBtn').addEventListener('click', async () => {
+      const start = parsePoint(document.getElementById('start').value);
+      const end = parsePoint(document.getElementById('end').value);
+      const mode = document.getElementById('mode').value;
+      if (!start || !end) { alert("Podaj poprawny start i metę"); return; }
+      await setRoute(start, end, mode);
+    });
+
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      if (routingLayer) { map.removeLayer(routingLayer); routingLayer = null; }
+      document.getElementById('start').value = '';
+      document.getElementById('end').value = '';
+    });
+	*/
+    // === 5) Wyszukiwanie przez Nominatim ===
+    const searchInput = document.getElementById('search');
+    searchInput.addEventListener('change', () => {
+      const query = searchInput.value.trim();
+      if (!query) return;
+      fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`)
+        .then(r => r.json())
+        .then(results => {
+          if (results && results.length > 0) {
+            const { lat, lon, display_name } = results[0];
+            const latLng = [parseFloat(lat), parseFloat(lon)];
+            map.setView(latLng, 12);
+            L.marker(latLng).addTo(map).bindPopup(`<b>${display_name}</b>`).openPopup();
+          } else {
+            alert("Nie znaleziono miejscowości");
+          }
+        });
+    });
+  </script>
+</body>
+</html>
