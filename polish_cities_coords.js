@@ -643,9 +643,9 @@ const REGIONS = {
   ],
   "Wielkopolskie": [
     {
-      "name": "Czaplino",
-      "lat": 53.227778,
-      "lon": 16.739444
+      "name": "Czempiń",
+      "lat": 52.142833,
+      "lon": 16.75915
     },
     {
       "name": "Dąbie",
