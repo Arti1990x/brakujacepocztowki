@@ -263,9 +263,9 @@ const REGIONS = {
   ],
   "Mazowieckie": [
     {
-      "name": "Bieruń",
-      "lat": 50.089722,
-      "lon": 19.092778
+      "name": "Bieżuń",
+      "lat": 52.961389,
+      "lon": 19.890833
     },
     {
       "name": "Brwinów",
