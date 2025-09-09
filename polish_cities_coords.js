@@ -658,7 +658,7 @@ const REGIONS = {
       "lon": 18.092778
     },
     {
-      "name": "Jarczewo",
+      "name": "Jaraczewo",
       "lat": 51.970278,
       "lon": 17.296167
     },
